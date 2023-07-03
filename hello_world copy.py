@@ -32,6 +32,26 @@ import omni.isaac.RangeSensorSchema as RangeSensorSchema
 from pxr import UsdGeom, UsdLux, Sdf, Gf, UsdPhysics
 from omni.isaac.ui.ui_utils import setup_ui_headers, get_style, btn_builder, combo_cb_scrolling_frame_builder
 
+
+### IMU sensor
+
+
+import carb
+import omni
+import asyncio
+import weakref
+import omni.physx as _physx
+import omni.ui as ui
+from omni.isaac.sensor import _sensor
+import omni.kit.commands
+from pxr import Gf, UsdGeom
+
+from omni.isaac.ui.ui_utils import setup_ui_headers, get_style, LABEL_WIDTH
+from omni.kit.menu.utils import add_menu_items, remove_menu_items, MenuItemDescription
+from omni.isaac.ui.menu import make_menu_item_description
+from omni.isaac.core.utils.nucleus import get_assets_root_path
+
+
 class HelloWorld(BaseSample):
     def __init__(self) -> None:
         super().__init__()
@@ -50,6 +70,9 @@ class HelloWorld(BaseSample):
         add_reference_to_stage(usd_path=asset_path, prim_path="/World/husky")
         
         husky_robot = world.scene.add(Robot(prim_path="/World/.*/husky", name="husky"))
+
+        ### Camera 
+
         HuskyCam = Camera(prim_path="/World/husky/husky/base_link/HuskyCam",
                             position=np.array([0.6, 0.08677, 0.65]),
                             frequency=20,
@@ -99,6 +122,47 @@ class HelloWorld(BaseSample):
         # we want to make sure we can see the lidar we made, so we set the camera position and look target
         set_camera_view(eye=[5.00, 5.00, 5.00], target=[0.0, 0.0, 0.0], camera_prim_path="/OmniverseKit_Persp")
 
+
+        #### IMU 
+        self.body_path = "/World/husky/husky/imu_link"
+        result, sensor = omni.kit.commands.execute(
+            "IsaacSensorCreateImuSensor",
+            path="/sensor",
+            parent=self.body_path,
+            sensor_period=-1.0,
+            translation=Gf.Vec3d(0, 0, 0),
+            orientation=Gf.Quatd(1, 0, 0, 0),
+            visualize=True,
+        )
+        self._is = _sensor.acquire_imu_sensor_interface()
+        self.sliders = []
+        reading = self._is.get_sensor_readings(self.body_path + "/sensor")
+        print(reading)
+        if reading.shape[0]:
+            self.sliders[0].model.set_value(float(reading[-1]["lin_acc_x"]) * self.meters_per_unit)  # readings
+            self.sliders[1].model.set_value(float(reading[-1]["lin_acc_y"]) * self.meters_per_unit)  # readings
+            self.sliders[2].model.set_value(float(reading[-1]["lin_acc_z"]) * self.meters_per_unit)  # readings
+            self.sliders[3].model.set_value(float(reading[-1]["ang_vel_x"]))  # readings
+            self.sliders[4].model.set_value(float(reading[-1]["ang_vel_y"]))  # readings
+            self.sliders[5].model.set_value(float(reading[-1]["ang_vel_z"]))  # readings
+            self.sliders[6].model.set_value(float(reading[-1]["orientation"][0]))  # readings
+            self.sliders[7].model.set_value(float(reading[-1]["orientation"][1]))  # readings
+            self.sliders[8].model.set_value(float(reading[-1]["orientation"][2]))  # readings
+            self.sliders[9].model.set_value(float(reading[-1]["orientation"][3]))  # readings
+
+        else:
+            self.sliders[0].model.set_value(0)
+            self.sliders[1].model.set_value(0)
+            self.sliders[2].model.set_value(0)
+            self.sliders[3].model.set_value(0)
+            self.sliders[4].model.set_value(0)
+            self.sliders[5].model.set_value(0)
+            self.sliders[6].model.set_value(0)
+            self.sliders[7].model.set_value(0)
+            self.sliders[8].model.set_value(0)
+            self.sliders[9].model.set_value(1)
+
+        #$#####
         fancy_cube = world.scene.add(
             DynamicCuboid(
                 prim_path="/World/random_cube",
